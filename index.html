@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Classroom - AI Study Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="classroom-container">
+        <!-- Classroom Header -->
+        <header class="classroom-header">
+            <h1>Welcome to The Classroom</h1>
+            <p class="subtitle">Your Personal AI Study Assistant</p>
+        </header>
+
+        <!-- Main Classroom Area -->
+        <main class="classroom-main">
+            <!-- Chalkboard/Main Content Area -->
+            <div class="chalkboard" id="chalkboard">
+                <div class="welcome-screen" id="welcomeScreen">
+                    <h2>Let's Start Learning!</h2>
+                    <p>Upload your notes and slides to begin your personalized study session.</p>
+                </div>
+
+                <!-- Learning Plan Display -->
+                <div class="learning-plan hidden" id="learningPlan">
+                    <h2>Your Learning Plan</h2>
+                    <div id="planContent"></div>
+                    <button class="chalk-button" id="startTeachingBtn">Start Teaching Session</button>
+                </div>
+
+                <!-- Teaching Interface -->
+                <div class="teaching-interface hidden" id="teachingInterface">
+                    <div class="lesson-header">
+                        <h2 id="lessonTitle">Lesson</h2>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+                    <div class="lesson-content" id="lessonContent"></div>
+                    <div class="lesson-controls">
+                        <button class="chalk-button" id="prevBtn">Previous</button>
+                        <button class="chalk-button" id="nextBtn">Next</button>
+                        <button class="chalk-button" id="restartBtn">Restart</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher's Desk/Control Panel -->
+            <div class="teachers-desk">
+                <div class="desk-section upload-section" id="uploadSection">
+                    <h3>📚 Upload Materials</h3>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="fileInput" accept=".txt,.pdf,.md,image/*" multiple hidden>
+                        <label for="fileInput" class="upload-label">
+                            <span class="upload-icon">📁</span>
+                            <span>Click to upload notes & slides</span>
+                            <span class="file-types">(PDF, TXT, MD, Images)</span>
+                        </label>
+                    </div>
+                    <div id="uploadedFiles" class="uploaded-files"></div>
+                </div>
+
+                <div class="desk-section method-section hidden" id="methodSection">
+                    <h3>🎓 Choose Learning Method</h3>
+                    <div class="learning-methods">
+                        <button class="method-btn" data-method="visual">
+                            <span class="method-icon">👁️</span>
+                            <span class="method-name">Visual</span>
+                            <span class="method-desc">Diagrams & Images</span>
+                        </button>
+                        <button class="method-btn" data-method="auditory">
+                            <span class="method-icon">🎧</span>
+                            <span class="method-name">Auditory</span>
+                            <span class="method-desc">Reading Aloud</span>
+                        </button>
+                        <button class="method-btn" data-method="reading">
+                            <span class="method-icon">📖</span>
+                            <span class="method-name">Reading/Writing</span>
+                            <span class="method-desc">Text & Notes</span>
+                        </button>
+                        <button class="method-btn" data-method="kinesthetic">
+                            <span class="method-icon">✋</span>
+                            <span class="method-name">Kinesthetic</span>
+                            <span class="method-desc">Interactive Practice</span>
+                        </button>
+                    </div>
+                    <button class="chalk-button" id="generatePlanBtn" disabled>Generate Learning Plan</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Classroom Footer -->
+        <footer class="classroom-footer">
+            <p>© 2025 The Classroom - AI-Powered Learning</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
