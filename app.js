@@ -41,45 +41,143 @@ restartBtn.addEventListener('click', restartSession);
 // File Upload Handler
 function handleFileUpload(event) {
     const files = Array.from(event.target.files);
-    
-    files.forEach(file => {
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            state.uploadedFiles.push({
-                name: file.name,
-                type: file.type,
-                content: e.target.result,
-                size: file.size
-            });
-            
-            displayUploadedFiles();
-            
-            // Show method selection when files are uploaded
-            if (state.uploadedFiles.length > 0) {
-                methodSection.classList.remove('hidden');
-            }
-        };
-        
-        // Read file based on type
-        if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
-            reader.readAsText(file);
-        } else if (file.type.startsWith('image/')) {
-            reader.readAsDataURL(file);
-        } else {
-            reader.readAsText(file); // Default to text for other types
+
+    function makeFileEntry(name, type, content = null, url = null, isImage = false, isDiagram = false) {
+        return { name, type, content, url, isImage, isDiagram };
+    }
+
+    function loadScript(url) {
+        return new Promise((resolve, reject) => {
+            if (document.querySelector(`script[src="${url}"]`)) return resolve();
+            const s = document.createElement('script');
+            s.src = url;
+            s.onload = () => resolve();
+            s.onerror = () => reject(new Error('Failed to load ' + url));
+            document.head.appendChild(s);
+        });
+    }
+
+    async function readPdfAsText(arrayBuffer) {
+        if (!window.pdfjsLib) {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
         }
+        const pdfjsLib = window.pdfjsLib;
+        if (!pdfjsLib) return '';
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n';
+        }
+        return fullText.trim();
+    }
+
+    async function readDocxAsText(arrayBuffer) {
+        if (!window.mammoth) {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js');
+        }
+        if (!window.mammoth) return '';
+        const result = await window.mammoth.convertToHtml({ arrayBuffer });
+        const tmp = document.createElement('div');
+        tmp.innerHTML = result.value || '';
+        return tmp.textContent || tmp.innerText || '';
+    }
+
+    files.forEach(async file => {
+        const ext = (file.name || '').split('.').pop().toLowerCase();
+
+        // Images: store preview and mark as diagram
+        if (file.type.startsWith('image/') || ['png','jpg','jpeg','gif','svg','bmp','webp'].includes(ext)) {
+            const url = URL.createObjectURL(file);
+            state.uploadedFiles.push(makeFileEntry(file.name, file.type, null, url, true, true));
+            displayUploadedFiles();
+            methodSection.classList.remove('hidden');
+            return;
+        }
+
+        // Plain text and markdown
+        if (file.type.startsWith('text/') || ext === 'txt' || ext === 'md') {
+            const reader = new FileReader();
+            reader.onload = () => {
+                state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'text/plain', String(reader.result)));
+                displayUploadedFiles();
+                methodSection.classList.remove('hidden');
+            };
+            reader.onerror = () => console.error('Failed reading text file', file.name);
+            reader.readAsText(file);
+            return;
+        }
+
+        // PDF
+        if (file.type === 'application/pdf' || ext === 'pdf') {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const arrayBuffer = reader.result;
+                    const text = await readPdfAsText(arrayBuffer);
+                    state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/pdf', text));
+                } catch (err) {
+                    console.error('PDF parse failed', err);
+                    state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/pdf', ''));
+                }
+                displayUploadedFiles();
+                methodSection.classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+            return;
+        }
+
+        // DOCX
+        if (ext === 'docx') {
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const arrayBuffer = reader.result;
+                    const text = await readDocxAsText(arrayBuffer);
+                    state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', text));
+                } catch (err) {
+                    console.error('DOCX parse failed', err);
+                    state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ''));
+                }
+                displayUploadedFiles();
+                methodSection.classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+            return;
+        }
+
+        // fallback: try to read as text
+        const reader = new FileReader();
+        reader.onload = () => {
+            state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/octet-stream', String(reader.result)));
+            displayUploadedFiles();
+            methodSection.classList.remove('hidden');
+        };
+        reader.onerror = () => {
+            console.error('Unknown file read error', file.name);
+            state.uploadedFiles.push(makeFileEntry(file.name, file.type || 'application/octet-stream', ''));
+            displayUploadedFiles();
+            methodSection.classList.remove('hidden');
+        };
+        reader.readAsText(file);
     });
 }
 
 // Display Uploaded Files
 function displayUploadedFiles() {
-    uploadedFiles.innerHTML = state.uploadedFiles.map((file, index) => `
+    uploadedFiles.innerHTML = state.uploadedFiles.map((file, index) => {
+        const preview = file.isImage && file.url ? `<img src="${file.url}" style="height:28px; margin-right:8px; vertical-align:middle; border-radius:4px;">` : '';
+        const diag = file.isDiagram ? ' 🔍(diagram)' : '';
+        return `
         <span class="file-tag">
-            ${file.name}
+            ${preview}${file.name}${diag}
             <span class="remove-file" onclick="removeFile(${index})">×</span>
         </span>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Remove File
@@ -89,6 +187,7 @@ function removeFile(index) {
     
     if (state.uploadedFiles.length === 0) {
         methodSection.classList.add('hidden');
+        generatePlanBtn.disabled = true;
     }
 }
 
@@ -130,35 +229,58 @@ function generateLearningPlan() {
 
 // Extract Topics from Content
 function extractTopics(content) {
-    if (!content || content.trim().length === 0) {
-        return ['Introduction to the Material', 'Key Concepts', 'Practice and Review'];
-    }
-    
-    // Simple topic extraction based on headers, bullet points, and paragraphs
-    const lines = content.split('\n').filter(line => line.trim());
+    if (!content || content.trim().length === 0) return [];
+
+    // Normalize and split into lines
+    const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const topics = [];
-    
-    // Look for headers (lines with #, or all caps, or ending with :)
+
+    // 1) Detect headings: markdown (#), lines ending in colon, or ALL CAPS
     lines.forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('#') || 
-            trimmed === trimmed.toUpperCase() && trimmed.length > 5 && trimmed.length < 100 ||
-            (trimmed.endsWith(':') && trimmed.length < 100)) {
-            topics.push(trimmed.replace(/^#+\s*/, '').replace(/:$/, ''));
+        if (/^#{1,6}\s+/.test(line)) {
+            topics.push(line.replace(/^#+\s+/, ''));
+            return;
+        }
+        if (/[:：]\s*$/.test(line) && line.length < 120) {
+            topics.push(line.replace(/[:：]\s*$/, ''));
+            return;
+        }
+        if (line === line.toUpperCase() && line.length > 3 && line.length < 80 && /[A-Z]/.test(line)) {
+            topics.push(line);
+            return;
+        }
+        if (/^[-*•]\s+/.test(line)) {
+            topics.push(line.replace(/^[-*•]\s+/, ''));
+            return;
         }
     });
-    
-    // If no topics found, create generic ones based on content length
+
+    // 2) If none found, use frequent bigrams as fallback
     if (topics.length === 0) {
-        const words = content.split(/\s+/).length;
-        const numTopics = Math.min(5, Math.max(3, Math.floor(words / 200)));
-        
-        for (let i = 0; i < numTopics; i++) {
-            topics.push(`Section ${i + 1}`);
+        const stopwords = new Set(["the","and","or","of","in","to","a","is","for","that","with","as","on","by","are","be","this","an","it","from","at","which","these","those"]);
+        const tokens = content.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && !stopwords.has(w));
+        const bigrams = {};
+        for (let i = 0; i < tokens.length - 1; i++) {
+            const b = tokens[i] + ' ' + tokens[i+1];
+            bigrams[b] = (bigrams[b] || 0) + 1;
+        }
+        const sorted = Object.entries(bigrams).sort((a,b) => b[1]-a[1]).slice(0,8).map(e => e[0]);
+        sorted.forEach(s => topics.push(s.split(' ').map(w => w.charAt(0).toUpperCase()+w.slice(1)).join(' ')));
+    }
+
+    // Dedupe and return
+    const seen = new Set();
+    const out = [];
+    for (const t of topics) {
+        const clean = t.replace(/\s+/g,' ').trim();
+        if (!clean) continue;
+        const key = clean.toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            out.push(clean);
         }
     }
-    
-    return topics.slice(0, 8); // Limit to 8 topics
+    return out.slice(0,8);
 }
 
 // Create Plan for Selected Method
